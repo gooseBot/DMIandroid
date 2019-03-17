@@ -2,6 +2,11 @@ package com.ericjackson.dmiandroid;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.ActivityInfo;
 import android.os.Bundle;
 import android.Manifest;
 import android.app.Activity;
@@ -28,6 +33,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -62,14 +68,72 @@ public class MainActivity extends Activity {
     private BluetoothGattCharacteristic rx;
     private ScanCallback scanCallback;
     private boolean scanning;
-    private boolean connected;
+    private boolean connected=false;
     private static String TAG = "Eric";
     private Handler tryConnectAgainHandler = new Handler();
     private Handler bleHandler = new Handler();
     private int numConnectionsCreated = 0;
+    private boolean bleOnBeforeCreate=true;
+    private boolean adaptorIsReady=false;
+
+    // OnCreate, called once to initialize the activity.
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT); // Make to run your application only in portrait mode
+
+        // Grab references to UI elements.
+        messages = findViewById(R.id.receivedText);
+        input = findViewById(R.id.commandText);
+        statusMsg = findViewById(R.id.statusText);
+
+        messages.setMovementMethod(new ScrollingMovementMethod());
+        messages.setFocusableInTouchMode(true);
+        messages.requestFocus();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_REQUEST_COARSE_LOCATION);
+        }
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        adapter = BluetoothAdapter.getDefaultAdapter();
+
+        //Set a filter to only receive bluetooth state changed events.
+        IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
+        registerReceiver(mReceiver, filter);
+
+        if(!adapter.isEnabled() && adapter != null){
+            bleOnBeforeCreate=false;
+            adapter.enable();
+        } else {
+            adaptorIsReady=true;
+        }
+    }
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+
+            if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
+                final int bluetoothState = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE,
+                        BluetoothAdapter.ERROR);
+                switch (bluetoothState) {
+                    case BluetoothAdapter.STATE_ON:
+                        adaptorIsReady=true;
+                        startLEscan();
+                        break;
+                    case BluetoothAdapter.STATE_OFF:
+                        adaptorIsReady=false;
+                        break;
+                }
+            }
+        }
+    };
 
     // Main BTLE device callback where much of the logic occurs.
-    private BluetoothGattCallback callback = new BluetoothGattCallback() {
+    private BluetoothGattCallback myGattCallBack = new BluetoothGattCallback() {
         // Called whenever the device connection state changes, i.e. from disconnected to connected.
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
@@ -77,7 +141,7 @@ public class MainActivity extends Activity {
             if (newState == BluetoothGatt.STATE_CONNECTED) {
                 writeLine("Connected!");
                 connected = true;
-                bleHandler.postDelayed(bleRunnable,600);
+                bleHandler.postDelayed(discoverServicesRunnable,600);
             }
             else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                 writeLine("Disconnected from Gatt!");
@@ -97,6 +161,17 @@ public class MainActivity extends Activity {
                 writeLine("Connection state changed.  New state: " + newState);
             }
         }
+        Runnable discoverServicesRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!gatt.discoverServices()) {
+                    writeLine("Failed to start discovering services!");
+                    disconnectGattServer();
+                } else {
+                    writeLine("Discover Services returned true");
+                }
+            }
+        };
 
         // Called when services have been discovered on the remote device.
         // It seems to be necessary to wait for this discovery to occur before
@@ -151,15 +226,6 @@ public class MainActivity extends Activity {
         }
     };
 
-    private void disconnectGattServer() {
-        connected = false;
-        if (gatt != null) {
-            gatt.disconnect();
-            gatt.close();
-            tx = null;
-            rx = null;
-        }
-    }
     private class BtleScanCallback extends ScanCallback {
         @Override
         public void onScanResult(int callbackType, ScanResult result){
@@ -168,7 +234,7 @@ public class MainActivity extends Activity {
             stopLEscan();
             // Control flow will now go to the callback functions when BTLE events occur.
             if (!connected) {
-                gatt = result.getDevice().connectGatt(getApplicationContext(), false, callback);
+                gatt = result.getDevice().connectGatt(getApplicationContext(), false, myGattCallBack);
             }
         }
         @Override
@@ -178,29 +244,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    // OnCreate, called once to initialize the activity.
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-        // Grab references to UI elements.
-        messages = findViewById(R.id.receivedText);
-        input = findViewById(R.id.commandText);
-        statusMsg = findViewById(R.id.statusText);
-
-        messages.setMovementMethod(new ScrollingMovementMethod());
-        messages.setFocusableInTouchMode(true);
-        messages.requestFocus();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_REQUEST_COARSE_LOCATION);
-        }
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        adapter = BluetoothAdapter.getDefaultAdapter();
-    }
-
-    // OnResume, called right before UI is displayed.  Start the BTLE connection.
     @Override
     protected void onResume() {
         super.onResume();
@@ -211,7 +254,7 @@ public class MainActivity extends Activity {
     }
 
     private void startLEscan() {
-        if (scanning || connected) {
+        if (scanning || connected || !adaptorIsReady || !adapter.isEnabled()) {
             return;
         }
         scanning = true;
@@ -233,20 +276,9 @@ public class MainActivity extends Activity {
     Runnable tryConnectAgainRunnable = new Runnable() {
         @Override
         public void run() {
-            if (!connected) {onResume();}
-        }
-    };
-
-    Runnable bleRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (!gatt.discoverServices()) {
-                writeLine("Failed to start discovering services!");
-                disconnectGattServer();
-            } else {
-                writeLine("Discover Services returned true");
-                //bleHandler.postDelayed(bleRunnable,600);
-            }
+            if (!connected) {
+                stopLEscan();
+                startLEscan();}
         }
     };
 
@@ -260,9 +292,31 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void disconnectGattServer() {
+        connected = false;
+        if (gatt != null) {
+            gatt.disconnect();
+            gatt.close();
+            tx = null;
+            rx = null;
+        }
+    }
+
     protected void onPause() {
         super.onPause();
         stopLEscan();
+    }
+
+    protected void onDestroy(){
+        super.onDestroy();
+        if (adapter != null && adapter.isEnabled() && !bleOnBeforeCreate){
+            adapter.disable();
+        }
+        unregisterReceiver(mReceiver);
+        gatt.disconnect(); //must do this.  Checking for null causes problems.  Just do this??!!
+        gatt.close();
+        tx = null;
+        rx = null;
     }
 
     // Handler for mouse click on the send button.
