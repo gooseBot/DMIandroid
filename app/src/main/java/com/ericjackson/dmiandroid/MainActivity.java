@@ -27,13 +27,10 @@ import android.os.Handler;
 import android.os.ParcelUuid;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -57,6 +54,8 @@ public class MainActivity extends Activity {
     private TextView messages;
     private TextView input;
     private TextView statusMsg;
+    private TextView arm;
+    private EditText calibration;
 
     // BTLE state
     private BluetoothAdapter adapter;
@@ -69,12 +68,13 @@ public class MainActivity extends Activity {
     private ScanCallback scanCallback;
     private boolean scanning;
     private boolean connected=false;
-    private static String TAG = "Eric";
+    private static String TAG = "eric";
     private Handler tryConnectAgainHandler = new Handler();
     private Handler bleHandler = new Handler();
     private int numConnectionsCreated = 0;
     private boolean bleOnBeforeCreate=true;
     private boolean adaptorIsReady=false;
+    private long armValue = 0;
 
     // OnCreate, called once to initialize the activity.
     @Override
@@ -87,6 +87,8 @@ public class MainActivity extends Activity {
         messages = findViewById(R.id.receivedText);
         input = findViewById(R.id.commandText);
         statusMsg = findViewById(R.id.statusText);
+        arm = findViewById(R.id.MPview);
+        calibration = findViewById(R.id.calibText);
 
         messages.setMovementMethod(new ScrollingMovementMethod());
         messages.setFocusableInTouchMode(true);
@@ -110,6 +112,22 @@ public class MainActivity extends Activity {
             adaptorIsReady=true;
         }
     }
+
+//    calibration.addTextChangedListener(new TextWatcher() {
+//
+//        // the user's changes are saved here
+//        public void onTextChanged(CharSequence c, int start, int before, int count) {
+//            mCrime.setTitle(c.toString());
+//        }
+//
+//        public void beforeTextChanged(CharSequence c, int start, int count, int after) {
+//            // this space intentionally left blank
+//        }
+//
+//        public void afterTextChanged(Editable c) {
+//            // this one too
+//        }
+//    });
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
@@ -222,6 +240,12 @@ public class MainActivity extends Activity {
             Matcher m = Pattern.compile("\\{(.*?)\\}").matcher(message);
             while(m.find()) {
                 writeLine("Received: " + m.group(1).toString());
+                armValue=Long.parseLong(m.group(1));
+                arm.post(new Runnable() {
+                    public void run() {
+                        arm.setText(String.valueOf(armValue));
+                    }
+                });
             }
         }
     };
@@ -247,6 +271,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        //Log.i(TAG, "onResume");
         writeLine("");
         writeLine("Entering OnResume...");
         stopLEscan();
@@ -257,6 +282,7 @@ public class MainActivity extends Activity {
         if (scanning || connected || !adaptorIsReady || !adapter.isEnabled()) {
             return;
         }
+        //Log.i(TAG, "startLEscan");
         scanning = true;
         tryConnectAgainHandler.removeCallbacks(tryConnectAgainRunnable);
         writeLine("Scanning for devices...");
@@ -285,6 +311,7 @@ public class MainActivity extends Activity {
     private void stopLEscan(){
         if ( scanning && adapter != null && adapter.isEnabled() && LEScanner != null) {
             writeLine("Stopping scan...");
+            //Log.i(TAG, "stopLEscan");
             LEScanner.stopScan(scanCallback);
             scanCallback = null;
             scanning=false;
@@ -295,6 +322,7 @@ public class MainActivity extends Activity {
     private void disconnectGattServer() {
         connected = false;
         if (gatt != null) {
+            //Log.i(TAG, "disconnectGattServer");
             gatt.disconnect();
             gatt.close();
             tx = null;
@@ -304,6 +332,7 @@ public class MainActivity extends Activity {
 
     protected void onPause() {
         super.onPause();
+        //Log.i(TAG, "onPause");
         stopLEscan();
     }
 
@@ -312,8 +341,12 @@ public class MainActivity extends Activity {
         if (adapter != null && adapter.isEnabled() && !bleOnBeforeCreate){
             adapter.disable();
         }
+        //Log.i(TAG, "onDestroy");
         unregisterReceiver(mReceiver);
-        gatt.disconnect(); //must do this.  Checking for null causes problems.  Just do this??!!
+        // I was calling disconnectGattServer but for some reason didnt work
+        //  not not checking for null, seems like checking for null returns true but object really exists?
+        //  and needs to be disconnected.  More to do.
+        gatt.disconnect();
         gatt.close();
         tx = null;
         rx = null;
@@ -321,16 +354,32 @@ public class MainActivity extends Activity {
 
     // Handler for mouse click on the send button.
     public void sendClick(View view) {
-
         String message = input.getText().toString();
-        if (tx == null || message == null || message.isEmpty()) {
-            // Do nothing if there is no device or message to send.
+        if (message == null || message.isEmpty()) {
             return;
         }
         sendMessage(message);
     }
 
+    // Handler for mouse click on the send button.
+    public void startClick(View view) {
+        sendMessage("r");
+    }
+
+    // Handler for mouse click on the send button.
+    public void stopClick(View view) {
+        sendMessage("s");
+    }
+
+    // Handler for mouse click on the send button.
+    public void clearClick(View view) {
+        sendMessage("c");
+    }
+
     private void sendMessage(String message) {
+        if (tx == null) {
+            return;
+        }
         // Update TX characteristic value.  Note the setValue overload that takes a byte array must be used.
         tx.setValue(message.getBytes(Charset.forName("UTF-8")));
         if (gatt.writeCharacteristic(tx)) {

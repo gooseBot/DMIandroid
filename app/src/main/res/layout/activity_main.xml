@@ -33,25 +33,24 @@
 
     <TextView
         android:id="@+id/statusText"
-        android:layout_width="364dp"
-        android:layout_height="44dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="8dp"
-        android:text="test"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.451"
+        android:layout_width="44dp"
+        android:layout_height="42dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="24dp"
+        android:background="@android:color/holo_green_light"
+        android:editable="false"
+        android:textSize="24sp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/commandText"
-        tools:text="test" />
+        app:layout_constraintTop_toBottomOf="@+id/commandText" />
 
     <TextView
         android:id="@+id/receivedText"
         android:layout_width="366dp"
         android:layout_height="0dp"
         android:layout_marginStart="22dp"
-        android:layout_marginTop="21dp"
+        android:layout_marginTop="35dp"
         android:layout_marginEnd="23dp"
+        android:layout_marginBottom="24dp"
         android:gravity="bottom"
         android:maxLines="25"
         android:scrollbars="vertical"
@@ -59,6 +58,63 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.51"
         app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/startBtn" />
+
+    <EditText
+        android:id="@+id/calibText"
+        android:layout_width="79dp"
+        android:layout_height="42dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="24dp"
+        android:background="@android:color/holo_green_light"
+        android:ems="10"
+        android:inputType="numberDecimal"
+        android:text="1"
+        android:textSize="24sp"
+        app:layout_constraintStart_toEndOf="@+id/statusText"
+        app:layout_constraintTop_toBottomOf="@+id/commandText" />
+
+    <Button
+        android:id="@+id/stopBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:onClick="stopClick"
+        android:text="Stop"
+        app:layout_constraintBottom_toBottomOf="@+id/startBtn"
+        app:layout_constraintStart_toEndOf="@+id/startBtn" />
+
+    <Button
+        android:id="@+id/clearBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:onClick="clearClick"
+        android:text="Clear"
+        app:layout_constraintBottom_toBottomOf="@+id/stopBtn"
+        app:layout_constraintStart_toEndOf="@+id/stopBtn" />
+
+    <Button
+        android:id="@+id/startBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="24dp"
+        android:onClick="startClick"
+        android:text="Start"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/statusText" />
+
+    <TextView
+        android:id="@+id/MPview"
+        android:layout_width="184dp"
+        android:layout_height="59dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="8dp"
+        android:textSize="36sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/calibText"
+        app:layout_constraintTop_toBottomOf="@+id/commandText" />
 </androidx.constraintlayout.widget.ConstraintLayout>
 
