@@ -75,6 +75,7 @@ public class MainActivity extends Activity {
     private boolean bleOnBeforeCreate=true;
     private boolean adaptorIsReady=false;
     private long armValue = 0;
+    private final static int MAX_LINE = 15;
 
     // OnCreate, called once to initialize the activity.
     @Override
@@ -110,6 +111,28 @@ public class MainActivity extends Activity {
             adapter.enable();
         } else {
             adaptorIsReady=true;
+        }
+    }
+
+    public void writeTerminal(String data) {
+        messages.append(data);
+        // Erase excessive lines to keep memory consumption of TextView low.
+        //   this code was found on stackoverflow https://stackoverflow.com/questions/5078058/how-to-delete-the-old-lines-of-a-textview
+        int excessLineNumber = messages.getLineCount() - MAX_LINE;
+        if (excessLineNumber > 0) {
+            int eolIndex = -1;
+            CharSequence charSequence = messages.getText();
+            for(int i=0; i<excessLineNumber; i++) {
+                do {
+                    eolIndex++;
+                } while(eolIndex < charSequence.length() && charSequence.charAt(eolIndex) != '\n');
+            }
+            if (eolIndex < charSequence.length()) {
+                messages.getEditableText().delete(0, eolIndex+1);
+            }
+            else {
+                messages.setText("");
+            }
         }
     }
 
@@ -397,8 +420,9 @@ public class MainActivity extends Activity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                messages.append(text);
-                messages.append("\n");
+                writeTerminal(text + "\n");
+                //messages.append(text);
+                //messages.append("\n");
             }
         });
     }
