@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.os.Bundle;
 import android.Manifest;
@@ -25,6 +26,9 @@ import android.bluetooth.le.ScanSettings;
 import android.os.Build;
 import android.os.Handler;
 import android.os.ParcelUuid;
+import android.preference.PreferenceManager;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
@@ -74,22 +78,27 @@ public class MainActivity extends Activity {
     private int numConnectionsCreated = 0;
     private boolean bleOnBeforeCreate=true;
     private boolean adaptorIsReady=false;
-    private long armValue = 0;
+    private double armValue = 0;
     private final static int MAX_LINE = 15;
+    private double calibrationValue = 1;
+    private SharedPreferences sharedSettings;
 
     // OnCreate, called once to initialize the activity.
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+        super.onCreate(savedInstanceState); // Always call the superclass first
         setContentView(R.layout.activity_main);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT); // Make to run your application only in portrait mode
 
+        sharedSettings = PreferenceManager.getDefaultSharedPreferences(this);
+        calibrationValue = sharedSettings.getFloat("calibrationValue", 1);
+
         // Grab references to UI elements.
         messages = findViewById(R.id.receivedText);
-        input = findViewById(R.id.commandText);
         statusMsg = findViewById(R.id.statusText);
         arm = findViewById(R.id.MPview);
         calibration = findViewById(R.id.calibText);
+        calibration.setText(Double.toString(calibrationValue));
 
         messages.setMovementMethod(new ScrollingMovementMethod());
         messages.setFocusableInTouchMode(true);
@@ -112,6 +121,26 @@ public class MainActivity extends Activity {
         } else {
             adaptorIsReady=true;
         }
+
+        calibration.addTextChangedListener(new TextWatcher() {
+            // the user's changes are saved here
+            public void onTextChanged(CharSequence c, int start, int before, int count) {
+                if (!c.toString().isEmpty()){
+                    try {
+                        calibrationValue = Double.parseDouble(c.toString());
+                    } catch(NumberFormatException nfe) {
+                        //System.out.println("Could not parse " + nfe);
+                    }
+                }
+            }
+            public void beforeTextChanged(CharSequence c, int start, int count, int after) {
+                // this space intentionally left blank
+            }
+            public void afterTextChanged(Editable c) {
+                // this one too
+            }
+        });
+
     }
 
     public void writeTerminal(String data) {
@@ -135,22 +164,6 @@ public class MainActivity extends Activity {
             }
         }
     }
-
-//    calibration.addTextChangedListener(new TextWatcher() {
-//
-//        // the user's changes are saved here
-//        public void onTextChanged(CharSequence c, int start, int before, int count) {
-//            mCrime.setTitle(c.toString());
-//        }
-//
-//        public void beforeTextChanged(CharSequence c, int start, int count, int after) {
-//            // this space intentionally left blank
-//        }
-//
-//        public void afterTextChanged(Editable c) {
-//            // this one too
-//        }
-//    });
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
@@ -260,13 +273,14 @@ public class MainActivity extends Activity {
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
             super.onCharacteristicChanged(gatt, characteristic);
             String message = characteristic.getStringValue(0);
+            // data comes in as strings in brackets like this {123}
             Matcher m = Pattern.compile("\\{(.*?)\\}").matcher(message);
             while(m.find()) {
                 writeLine("Received: " + m.group(1).toString());
-                armValue=Long.parseLong(m.group(1));
+                armValue = Long.parseLong(m.group(1))/calibrationValue;
                 arm.post(new Runnable() {
                     public void run() {
-                        arm.setText(String.valueOf(armValue));
+                        arm.setText(String.format("%.2f", armValue));
                     }
                 });
             }
@@ -294,7 +308,6 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        //Log.i(TAG, "onResume");
         writeLine("");
         writeLine("Entering OnResume...");
         stopLEscan();
@@ -305,9 +318,9 @@ public class MainActivity extends Activity {
         if (scanning || connected || !adaptorIsReady || !adapter.isEnabled()) {
             return;
         }
-        //Log.i(TAG, "startLEscan");
         scanning = true;
         tryConnectAgainHandler.removeCallbacks(tryConnectAgainRunnable);
+        // prepare to scan
         writeLine("Scanning for devices...");
         ScanFilter scanFilter = new ScanFilter.Builder()
                 .setServiceUuid(ParcelUuid.fromString(UART_UUIDstr))
@@ -318,7 +331,7 @@ public class MainActivity extends Activity {
         LEScanner = adapter.getBluetoothLeScanner();
         settings = new ScanSettings.Builder().setScanMode(ScanSettings.CALLBACK_TYPE_FIRST_MATCH).build();
         LEScanner.startScan(filters, settings, scanCallback);
-
+        // try again in 5 seconds if this one fails
         tryConnectAgainHandler.postDelayed(tryConnectAgainRunnable, 5000);
     }
 
@@ -334,7 +347,6 @@ public class MainActivity extends Activity {
     private void stopLEscan(){
         if ( scanning && adapter != null && adapter.isEnabled() && LEScanner != null) {
             writeLine("Stopping scan...");
-            //Log.i(TAG, "stopLEscan");
             LEScanner.stopScan(scanCallback);
             scanCallback = null;
             scanning=false;
@@ -345,7 +357,6 @@ public class MainActivity extends Activity {
     private void disconnectGattServer() {
         connected = false;
         if (gatt != null) {
-            //Log.i(TAG, "disconnectGattServer");
             gatt.disconnect();
             gatt.close();
             tx = null;
@@ -355,8 +366,10 @@ public class MainActivity extends Activity {
 
     protected void onPause() {
         super.onPause();
-        //Log.i(TAG, "onPause");
         stopLEscan();
+        SharedPreferences.Editor edit = sharedSettings.edit();
+        edit.putFloat("calibrationValue", (float)calibrationValue);
+        edit.apply();
     }
 
     protected void onDestroy(){
@@ -373,15 +386,6 @@ public class MainActivity extends Activity {
         gatt.close();
         tx = null;
         rx = null;
-    }
-
-    // Handler for mouse click on the send button.
-    public void sendClick(View view) {
-        String message = input.getText().toString();
-        if (message == null || message.isEmpty()) {
-            return;
-        }
-        sendMessage(message);
     }
 
     // Handler for mouse click on the send button.
@@ -426,5 +430,23 @@ public class MainActivity extends Activity {
             }
         });
     }
+
+//    @Override
+//    public void onSaveInstanceState(Bundle savedInstanceState) {
+//        super.onSaveInstanceState(savedInstanceState);
+//        // Save UI state changes to the savedInstanceState.
+//        // This bundle will be passed to onCreate if the process is
+//        // killed and restarted.
+//        savedInstanceState.putDouble("calibrationValue", calibrationValue);
+//        writeLine("Save instance state");
+//    }
+
+//    @Override
+//    public void onRestoreInstanceState(Bundle savedInstanceState) {
+//        super.onRestoreInstanceState(savedInstanceState);
+//        // Restore UI state from the savedInstanceState.
+//        // This bundle has also been passed to onCreate.
+//        calibrationValue = savedInstanceState.getDouble("calibrationValue");
+//    }
 
 }

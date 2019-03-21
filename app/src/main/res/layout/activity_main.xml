@@ -6,42 +6,46 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <EditText
-        android:id="@+id/commandText"
-        android:layout_width="250dp"
-        android:layout_height="48dp"
-        android:layout_marginStart="22dp"
-        android:layout_marginTop="24dp"
-        android:ems="10"
-        android:inputType="text"
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="49dp"
+        android:layout_height="50dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="27dp"
+        android:background="@android:color/holo_green_light"
+        android:textSize="24sp"
+        android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <Button
-        android:id="@+id/buttonSend"
-        android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="24dp"
-        android:layout_marginEnd="16dp"
-        android:onClick="sendClick"
-        android:text="@string/sendBtn"
-        app:layout_constraintBottom_toBottomOf="@+id/commandText"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/commandText"
+    <EditText
+        android:id="@+id/calibText"
+        android:layout_width="80dp"
+        android:layout_height="50dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="27dp"
+        android:layout_marginEnd="8dp"
+        android:background="@android:color/holo_green_light"
+        android:imeOptions="actionDone"
+        android:inputType="number"
+        android:text="1"
+        android:textSize="24sp"
+        app:layout_constraintEnd_toStartOf="@+id/MPview"
+        app:layout_constraintHorizontal_bias="0.25"
+        app:layout_constraintStart_toEndOf="@+id/statusText"
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
-        android:id="@+id/statusText"
-        android:layout_width="44dp"
-        android:layout_height="42dp"
-        android:layout_marginStart="20dp"
-        android:layout_marginTop="24dp"
-        android:background="@android:color/holo_green_light"
-        android:editable="false"
-        android:textSize="24sp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/commandText" />
+        android:id="@+id/MPview"
+        android:layout_width="160dp"
+        android:layout_height="50dp"
+        android:layout_marginTop="27dp"
+        android:layout_marginEnd="16dp"
+        android:text="23.00"
+        android:textAlignment="viewEnd"
+        android:textSize="36sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
         android:id="@+id/receivedText"
@@ -61,61 +65,39 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/startBtn" />
 
-    <EditText
-        android:id="@+id/calibText"
-        android:layout_width="79dp"
-        android:layout_height="42dp"
-        android:layout_marginStart="20dp"
-        android:layout_marginTop="24dp"
-        android:background="@android:color/holo_green_light"
-        android:ems="10"
-        android:inputType="numberDecimal"
-        android:text="1"
-        android:textSize="24sp"
-        app:layout_constraintStart_toEndOf="@+id/statusText"
-        app:layout_constraintTop_toBottomOf="@+id/commandText" />
-
     <Button
         android:id="@+id/stopBtn"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
+        android:layout_width="109dp"
+        android:layout_height="56dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
         android:onClick="stopClick"
         android:text="Stop"
-        app:layout_constraintBottom_toBottomOf="@+id/startBtn"
-        app:layout_constraintStart_toEndOf="@+id/startBtn" />
+        app:layout_constraintEnd_toStartOf="@+id/clearBtn"
+        app:layout_constraintStart_toEndOf="@+id/startBtn"
+        app:layout_constraintTop_toTopOf="@+id/startBtn" />
 
     <Button
         android:id="@+id/clearBtn"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
+        android:layout_width="109dp"
+        android:layout_height="56dp"
+        android:layout_marginEnd="16dp"
         android:onClick="clearClick"
         android:text="Clear"
-        app:layout_constraintBottom_toBottomOf="@+id/stopBtn"
-        app:layout_constraintStart_toEndOf="@+id/stopBtn" />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/stopBtn" />
 
     <Button
         android:id="@+id/startBtn"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
+        android:layout_width="109dp"
+        android:layout_height="56dp"
+        android:layout_marginStart="16dp"
         android:layout_marginTop="24dp"
         android:onClick="startClick"
         android:text="Start"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/statusText" />
 
-    <TextView
-        android:id="@+id/MPview"
-        android:layout_width="184dp"
-        android:layout_height="59dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="8dp"
-        android:textSize="36sp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/calibText"
-        app:layout_constraintTop_toBottomOf="@+id/commandText" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>
 
