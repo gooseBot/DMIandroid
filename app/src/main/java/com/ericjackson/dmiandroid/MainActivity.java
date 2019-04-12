@@ -8,12 +8,12 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.database.Cursor;
+import android.location.Location;
 import android.os.Bundle;
 import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothAdapter.LeScanCallback;
-import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
@@ -82,6 +82,8 @@ public class MainActivity extends Activity {
     private final static int MAX_LINE = 15;
     private double calibrationValue = 1;
     private SharedPreferences sharedSettings;
+    private milePostLocation nearestLocation ;
+    private dbHelper db;
 
     // OnCreate, called once to initialize the activity.
     @Override
@@ -140,6 +142,16 @@ public class MainActivity extends Activity {
                 // this one too
             }
         });
+
+        //using this to deploy the database https://github.com/jgilfelt/android-sqlite-asset-helper
+        db = new dbHelper(this);
+        double myLat = 47.177189;
+        double myLong = -123.097217;
+        Location myLocation = new Location("");
+        myLocation.setLatitude(myLat);
+        myLocation.setLongitude(myLong);
+        nearestLocation = db.getNearbySRMPlocations(myLocation); // you would not typically call this on the main thread
+        milePostLocation nearestLocationSrmpInfo = db.getSRMPinfo(nearestLocation);
 
     }
 
@@ -386,6 +398,7 @@ public class MainActivity extends Activity {
         gatt.close();
         tx = null;
         rx = null;
+        db.close();
     }
 
     // Handler for mouse click on the send button.
