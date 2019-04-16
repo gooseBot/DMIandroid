@@ -4,6 +4,7 @@ public class milePostLocation
 {
     private int arm;
     private int srmp;
+    private int azimuth;
     private String direction;
     private double longitude;
     private double latitude;
@@ -11,6 +12,7 @@ public class milePostLocation
     private String relRouteType;
     private String relRouteQualifier;
     private String aheadBackIndicator;
+
     public milePostLocation(int arm,
                             int srmp,
                             String direction,
@@ -19,7 +21,8 @@ public class milePostLocation
                             String relRouteQualifier,
                             String aheadBackIndicator,
                             double latitude,
-                            double longitude)
+                            double longitude,
+                            int azimuth)
     {
         this.arm = arm;
         this.srmp = srmp;
@@ -30,6 +33,7 @@ public class milePostLocation
         this.aheadBackIndicator = aheadBackIndicator;
         this.latitude = latitude;
         this.longitude = longitude;
+        this.azimuth = azimuth;
     }
     public int getArm() { return arm; }
     public int getSrmp() { return srmp; }
@@ -40,6 +44,8 @@ public class milePostLocation
     public String getaheadBackIndicator() { return aheadBackIndicator; }
     public double getLatitude() { return latitude; }
     public double getLongitude() { return  longitude; }
+    public int getAzimuth() { return  azimuth;}
+
     public String toString() { return stateRoute +
             relRouteType +
             relRouteQualifier +

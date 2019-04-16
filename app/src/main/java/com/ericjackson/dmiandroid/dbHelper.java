@@ -28,7 +28,7 @@ public class dbHelper extends SQLiteAssetHelper {
 
         String[] sqlSelect = {"_id", "routeid", "arm", "srmp",
                 "direction", "longitude", "latitude", "stateRoute",
-                "relRouteTy", "relRouteQu", "aheadBackI"};
+                "relRouteTy", "relRouteQu", "aheadBackI","azimuth"};
         String sqlTables = "sr24kpointsall2017";
         String whereClause = "latitude >= CAST(? AS REAL) AND latitude <= CAST(? AS REAL) AND " +
                 "longitude >= CAST(? AS REAL) AND longitude <= CAST(? AS REAL)";
@@ -71,12 +71,13 @@ public class dbHelper extends SQLiteAssetHelper {
                     c.getString(c.getColumnIndex("relroutequ")),
                     c.getString(c.getColumnIndex("aheadbacki")),
                     c.getDouble(c.getColumnIndex("latitude")),
-                    c.getDouble(c.getColumnIndex("longitude")));
+                    c.getDouble(c.getColumnIndex("longitude")),
+                    c.getInt(c.getColumnIndex("azimuth")));
         }
         else
         {
             return new milePostLocation(0,0,"","",
-                    "","","",0,0);
+                    "","","",0,0,0);
         }
     }
 
@@ -86,7 +87,7 @@ public class dbHelper extends SQLiteAssetHelper {
 
         String[] sqlSelect = {"_id", "routeid", "arm", "srmp",
                 "direction", "longitude", "latitude", "stateRoute",
-                "relRouteTy", "relRouteQu", "aheadBackI"};
+                "relRouteTy", "relRouteQu", "aheadBackI", "azimuth"};
         String sqlTables = "sr24kpointsall2017";
         // all ? must be as strings, an android limitation, CAST operation used to convert back to proper type for SQL
         String whereClause = "routeid = ? AND direction = ? AND arm = CAST(? AS INTEGER)";
@@ -110,11 +111,12 @@ public class dbHelper extends SQLiteAssetHelper {
                     c.getString(c.getColumnIndex("relroutequ")),
                     c.getString(c.getColumnIndex("aheadbacki")),
                     c.getDouble(c.getColumnIndex("latitude")),
-                    c.getDouble(c.getColumnIndex("longitude")));
+                    c.getDouble(c.getColumnIndex("longitude")),
+                    c.getInt(c.getColumnIndex("azimuth")));
         } else
         {
             return new milePostLocation(0,0,"","",
-                    "","","",0,0);
+                    "","","",0,0, 0);
         }
     }
 

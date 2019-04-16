@@ -1,14 +1,16 @@
 package com.ericjackson.dmiandroid;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
-import android.database.Cursor;
+import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Location;
 import android.os.Bundle;
 import android.Manifest;
@@ -25,6 +27,7 @@ import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.os.Build;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelUuid;
 import android.preference.PreferenceManager;
 import android.text.Editable;
@@ -32,9 +35,19 @@ import android.text.TextWatcher;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewDebug;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.SettingsClient;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -43,7 +56,9 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class MainActivity extends Activity {
+import static com.google.android.gms.location.LocationServices.getFusedLocationProviderClient;
+
+public class MainActivity extends Activity implements SensorEventListener {
 
     // UUIDs for UAT service and associated characteristics.
     public static UUID UART_UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
@@ -53,6 +68,8 @@ public class MainActivity extends Activity {
     // UUID for the BTLE client characteristic which is necessary for notifications.
     public static UUID CLIENT_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     private static final int PERMISSION_REQUEST_COARSE_LOCATION = 1;
+    private long UPDATE_INTERVAL = 10 * 1000;  /* 10 secs */
+    private long FASTEST_INTERVAL = 2000; /* 2 sec */
 
     // UI elements
     private TextView messages;
@@ -71,19 +88,31 @@ public class MainActivity extends Activity {
     private BluetoothGattCharacteristic rx;
     private ScanCallback scanCallback;
     private boolean scanning;
-    private boolean connected=false;
+    private boolean connected = false;
     private static String TAG = "eric";
     private Handler tryConnectAgainHandler = new Handler();
     private Handler bleHandler = new Handler();
     private int numConnectionsCreated = 0;
-    private boolean bleOnBeforeCreate=true;
-    private boolean adaptorIsReady=false;
+    private boolean bleOnBeforeCreate = true;
+    private boolean adaptorIsReady = false;
     private double armValue = 0;
     private final static int MAX_LINE = 15;
     private double calibrationValue = 1;
     private SharedPreferences sharedSettings;
-    private milePostLocation nearestLocation ;
+    private milePostLocation nearestLocation;
     private dbHelper db;
+    private FusedLocationProviderClient fusedLocationClient;
+    private LocationRequest mLocationRequest;
+    private SensorManager mSensorManager;
+    private Sensor mAccelerometer;
+    private Sensor mMagnetometer;
+    private float[] mLastAccelerometer = new float[3];
+    private float[] mLastMagnetometer = new float[3];
+    private boolean mLastAccelerometerSet = false;
+    private boolean mLastMagnetometerSet = false;
+    private float[] mR = new float[9];
+    private float[] mOrientation = new float[3];
+    private float mCurrentDegree = 0f;
 
     // OnCreate, called once to initialize the activity.
     @Override
@@ -107,7 +136,7 @@ public class MainActivity extends Activity {
         messages.requestFocus();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_REQUEST_COARSE_LOCATION);
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_REQUEST_COARSE_LOCATION);
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -117,31 +146,38 @@ public class MainActivity extends Activity {
         IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
         registerReceiver(mReceiver, filter);
 
-        if(!adapter.isEnabled() && adapter != null){
-            bleOnBeforeCreate=false;
+        if (!adapter.isEnabled() && adapter != null) {
+            bleOnBeforeCreate = false;
             adapter.enable();
         } else {
-            adaptorIsReady=true;
+            adaptorIsReady = true;
         }
 
         calibration.addTextChangedListener(new TextWatcher() {
             // the user's changes are saved here
             public void onTextChanged(CharSequence c, int start, int before, int count) {
-                if (!c.toString().isEmpty()){
+                if (!c.toString().isEmpty()) {
                     try {
                         calibrationValue = Double.parseDouble(c.toString());
-                    } catch(NumberFormatException nfe) {
+                    } catch (NumberFormatException nfe) {
                         //System.out.println("Could not parse " + nfe);
                     }
                 }
             }
+
             public void beforeTextChanged(CharSequence c, int start, int count, int after) {
                 // this space intentionally left blank
             }
+
             public void afterTextChanged(Editable c) {
                 // this one too
             }
         });
+
+        mSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
+        mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        mMagnetometer = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+        startLocationUpdates();
 
         //using this to deploy the database https://github.com/jgilfelt/android-sqlite-asset-helper
         db = new dbHelper(this);
@@ -153,6 +189,47 @@ public class MainActivity extends Activity {
         nearestLocation = db.getNearbySRMPlocations(myLocation); // you would not typically call this on the main thread
         milePostLocation nearestLocationSrmpInfo = db.getSRMPinfo(nearestLocation);
 
+    }
+
+    // Trigger new location updates at interval
+    protected void startLocationUpdates() {
+
+        // Create the location request to start receiving updates
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest.setInterval(UPDATE_INTERVAL);
+        mLocationRequest.setFastestInterval(FASTEST_INTERVAL);
+
+        // Create LocationSettingsRequest object using location request
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder();
+        builder.addLocationRequest(mLocationRequest);
+        LocationSettingsRequest locationSettingsRequest = builder.build();
+
+        // Check whether location settings are satisfied
+        SettingsClient settingsClient = LocationServices.getSettingsClient(this);
+        settingsClient.checkLocationSettings(locationSettingsRequest);
+
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        getFusedLocationProviderClient(this).requestLocationUpdates(mLocationRequest, new LocationCallback() {
+                    @Override
+                    public void onLocationResult(LocationResult locationResult) {
+                        onLocationChanged(locationResult.getLastLocation());
+                    }
+                },
+                Looper.myLooper());
+    }
+
+    public void onLocationChanged(Location location) {
+        // New location has now been determined
+        String msg = "Updated Location: " +
+                Double.toString(location.getLatitude()) + "," +
+                Double.toString(location.getLongitude());
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+        // You can now create a LatLng Object for use with maps
+        //LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
     }
 
     public void writeTerminal(String data) {
@@ -320,10 +397,36 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_GAME);
+        mSensorManager.registerListener(this, mMagnetometer, SensorManager.SENSOR_DELAY_GAME);
         writeLine("");
         writeLine("Entering OnResume...");
         stopLEscan();
         startLEscan();
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        if (event.sensor == mAccelerometer) {
+            System.arraycopy(event.values, 0, mLastAccelerometer, 0, event.values.length);
+            mLastAccelerometerSet = true;
+        } else if (event.sensor == mMagnetometer) {
+            System.arraycopy(event.values, 0, mLastMagnetometer, 0, event.values.length);
+            mLastMagnetometerSet = true;
+        }
+        if (mLastAccelerometerSet && mLastMagnetometerSet) {
+            SensorManager.getRotationMatrix(mR, null, mLastAccelerometer, mLastMagnetometer);
+            SensorManager.getOrientation(mR, mOrientation);
+            float azimuthInRadians = mOrientation[0];
+            float azimuthInDegress = (float)(Math.toDegrees(azimuthInRadians)+360)%360;
+            mCurrentDegree = -azimuthInDegress;
+            Toast.makeText(this, Float.toString(mCurrentDegree), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
     }
 
     private void startLEscan() {
@@ -378,6 +481,8 @@ public class MainActivity extends Activity {
 
     protected void onPause() {
         super.onPause();
+        mSensorManager.unregisterListener(this, mAccelerometer);
+        mSensorManager.unregisterListener(this, mMagnetometer);
         stopLEscan();
         SharedPreferences.Editor edit = sharedSettings.edit();
         edit.putFloat("calibrationValue", (float)calibrationValue);
